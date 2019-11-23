@@ -123,11 +123,7 @@ FBGEMM_API void Dequantize(
     const T* src,
     float* dst,
     int len,
-    const TensorQuantizationParams& qparams) {
-  for (std::size_t i = 0; i < len; i++) {
-    dst[i] = Dequantize(src[i], qparams);
-  }
-}
+    const TensorQuantizationParams& qparams);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Requantization (pure fixed-point)

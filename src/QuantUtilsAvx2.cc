@@ -111,6 +111,44 @@ template void QuantizeAvx2<int8_t>(
     int len,
     const TensorQuantizationParams& qparams);
 
+template <typename T>
+void DequantizeAvx2(
+    const T* src,
+    float* dst,
+    int len,
+    const TensorQuantizationParams& qparams) {
+#if defined(__AVX2__) && defined(__FMA__)
+  constexpr int VLEN = 8;
+  std::size_t i = 0;
+  T *src_tmp = const_cast<T *>(src);
+  __m256 scale_v = _mm256_set1_ps(qparams.scale);
+  __m256 zero_point_v = _mm256_set1_ps(qparams.zero_point * -1.0);
+  for (; i < len / VLEN * VLEN; i += VLEN) {
+    __m128i src_vi8 = _mm_loadl_epi64(reinterpret_cast<__m128i*>(src_tmp + i));
+    __m256i src_vi32 = _mm256_cvtepu8_epi32(src_vi8);
+    __m256 src_vps = _mm256_cvtepi32_ps(src_vi32);
+    __m256 transformed_v = _mm256_add_ps(src_vps, zero_point_v);
+    transformed_v = _mm256_mul_ps(scale_v, transformed_v);
+    _mm256_storeu_ps(dst + i, transformed_v);
+  }
+  for (; i < len ; ++i) {
+    dst[i] = qparams.scale * (src[i] - qparams.zero_point);
+  }
+#endif
+}
+
+// Instantiate DequantizeAvx2 for known datatypes
+template void DequantizeAvx2<uint8_t>(
+    const uint8_t* src,
+    float* dst,
+    int len,
+    const TensorQuantizationParams& qparams);
+template void DequantizeAvx2<int8_t>(
+    const int8_t* src,
+    float* dst,
+    int len,
+    const TensorQuantizationParams& qparams);
+
 void FindMinMax(const float* a, float* min, float* max, int len) {
   if (len <= 0) {
     *min = 0.0f;

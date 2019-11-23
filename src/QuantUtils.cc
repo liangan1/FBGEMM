@@ -190,7 +190,47 @@ void Quantize<T>(                                                       \
 
 FBGEMM_SPECIALIZED_QUANTIZE_AVX2(int8_t)
 FBGEMM_SPECIALIZED_QUANTIZE_AVX2(uint8_t)
-#undef FBGEMM_SPECIALIZED_QUANTIZE_AVX2
+
+#define FBGEMM_SPECIALIZED_DEQUANTIZE(T)                                \
+  template <>                                                           \
+  void Dequantize<T>(                                                   \
+      const T* src,                                                     \
+      float* dst,                                                       \
+      const int len,                                                    \
+      const TensorQuantizationParams& qparams) {                        \
+    for (int i = 0; i < len; ++i) {                                     \
+      dst[i] = src[i] * qparams.scale - qparams.zero_point;             \
+    }                                                                   \
+  }                                              
+  
+FBGEMM_SPECIALIZED_DEQUANTIZE(int32_t)
+FBGEMM_SPECIALIZED_DEQUANTIZE(int16_t)
+FBGEMM_SPECIALIZED_DEQUANTIZE(uint16_t)
+#undef FBGEMM_SPECIALIZED_DEQUANTIZE
+
+#define FBGEMM_SPECIALIZED_DEQUANTIZE_AVX2(T)                           \
+template <>                                                             \
+void Dequantize<T>(                                                     \
+    const T* src,                                                       \
+    float* dst,                                                         \
+    int len,                                                            \
+    const TensorQuantizationParams& qparams) {                          \
+  bool avx2_support = cpuinfo_initialize() && fbgemmHasAvx2Support();   \
+  bool fma_support = cpuinfo_has_x86_fma3();                            \
+  if (avx2_support && fma_support && qparams.precision == 8) {          \
+    /* fast path  */                                                    \
+    DequantizeAvx2<T>(src, dst, len, qparams);                          \
+  } else {                                                              \
+    for (std::size_t i = 0; i < len; ++i) {                             \
+      dst[i] = src[i] * qparams.scale - qparams.zero_point;             \
+    }                                                                   \
+  }                                                                     \
+}
+
+FBGEMM_SPECIALIZED_DEQUANTIZE_AVX2(uint8_t)
+FBGEMM_SPECIALIZED_DEQUANTIZE_AVX2(int8_t)
+#undef FBGEMM_SPECIALIZED_DEQUANTIZE_AVX2
+
 
 #define FBGEMM_SPECIALIZED_QUANTIZEGROUPWISEKCX(T)                \
   template <>                                                     \
